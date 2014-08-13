@@ -1,0 +1,229 @@
+#:kivy 1.8.0
+
+<UIManager>:
+    getdata: getdata
+    processdata: processdata
+    vizdata: vizdata
+    savedatagen: savedatagen
+    uiroot: uiroot
+    loader_acc: loader_acc
+    loader_acc_imp: loader_acc_ver
+    loader_acc_sel: loader_acc_sel
+    loader_acc_disp: loader_acc_disp
+    loader_preview_grid: loader_preview_grid
+
+    id: uiroot
+
+    ActionBar:
+        background_color: [.7, .7, .7, 1]
+        top: self.parent.top
+        id: actionbar
+        height: 40
+        size_hint: None, None
+        width: root.width
+        padding: 10
+        # https://github.com/kivy/kivy/blob/master/examples/widgets/actionbar.py
+
+        ActionView:
+            use_separator: True
+            ActionPrevious:
+                title: 'Open-format particle tracking'
+                with_previous: False
+
+    TabPanelSwag:
+        id: mainwindow
+        do_default_tab: False
+        tab_pos: 'top_left'
+        pos: root.pos
+        size_hint: None, None
+        width: root.width
+        height: root.height - actionbar.height
+        tab_width: 200
+
+        TabbedPanelItem:
+            id: getdata
+            text: 'Load / Import data'
+            Accordion:
+                width: root.width
+                height: mainwindow.height
+                pos: root.pos
+                do_scroll_x: False
+                orientation: "vertical"
+                padding: 7
+                border: 7
+                id: loader_acc
+
+                AccordionItem:
+                    title: "Select File"
+                    id: loader_acc_sel
+
+                    BoxLayout:
+                        LoadDialog:
+                            id: fileloader
+
+                AccordionItem:
+                    title: "Verify Data"
+                    id: loader_acc_ver
+                    disabled: (not root.data_selected)
+
+                    BoxLayout:
+                        orientation: "vertical"
+                        size_hint: 1, 1
+                        height: self.parent.height
+                        spacing: 5
+
+                        MinLabel:
+                            id: header_preview
+                            text: root.imported_header
+                            pos_hint: {'center_x': .5}
+                            top: self.parent.top - 10
+                            padding: 5, 5
+
+                        ScrollView:
+                            id: loader_preview_scroll
+                            scroll_type: ['content', 'bars'] 
+                            bar_width: 20
+                            size_hint: None, 1
+                            # Note that, due to bug, you cannot use parental padding property to pad
+                            width: min(self.parent.width - 20, loader_preview_grid.width + self.bar_width)
+                            pos_hint: {'center_x': .5}
+
+                            GridLayout:
+                                id: loader_preview_grid
+                                cols: root.loader_preview_cols
+                                rows: root.loader_preview_rows
+                                size_hint: None, None
+                                size: self.minimum_size
+                                spacing: 15, 4
+
+                        Button:
+                            text: 'Import data'
+                            size_hint: None, None
+                            width: 300
+                            height: 25
+                            pos_hint: {'center_x': .5}
+                            on_press: app.root.trigger_data_import()
+
+                AccordionItem:
+                    title: "Displaced"
+                    id: loader_acc_disp
+                    disabled: True
+
+                    FloatLayout:
+                        Label:
+                            text: ""
+        TabbedPanelItem:
+            id: processdata
+            text: 'Data processing'
+            disabled: True
+            BoxLayout:
+                Label:
+                    text: 'Second tab content area'
+                Button:
+                    text: 'Button that does nothing'
+        TabbedPanelItem:
+            id: vizdata
+            text: 'Data visualization'
+            disabled: True
+            RstDocument:
+                text: '**Nonsense!!**'
+        TabbedPanelItem:
+            id: savedatagen
+            text: 'Save generated data'
+            disabled: True
+            RstDocument:
+                text: 'Yeah, that\'s what will go here.\n=== \n\n **Nonsense!!**'
+
+<LoadDialog>:
+    BoxLayout:
+        size_hint: .5, 1
+        pos_hint: {'center_x': .5, 'center_y': .5}
+        orientation: "vertical"
+        padding_bottom: 20
+        canvas:
+            Color:
+                rgba: .5, .5, .5, 1
+            Rectangle:
+                pos: self.pos
+                size: self.size
+
+        FileChooserListView:
+            id: filechooser
+            width: 300
+            filters: root.file_filters
+            path: root.ref_path
+
+        Button:
+            pos_hint: {'center_x': .5, 'center_y': .5}
+            size_hint: .25, None
+            height: 20
+            text: "Load"
+            on_release: app.select_data(filechooser.path, filechooser.selection)
+
+<DataLoader>:
+    layout: layout
+
+    canvas:
+        Color:
+            rgba: .1, .1, .1, .9
+        Rectangle:
+            pos: self.pos
+            size: self.size
+    size: layout.size
+    size_hint: None, None
+    id: dataloader
+
+    StackLayout:
+        padding: 10
+        spacing: 5
+        height: self.minimum_height
+        width: 500
+        size_hint: None, None
+        id: layout
+
+        Label:
+            font_size: 20
+            text: "Dataloader"
+            top: root.top
+            size_hint: .5, None
+            height: 40
+            color: [0, 1, 0, 1]
+
+        Button:
+            id: done_button
+            font_size: 20
+            text: "Done"
+            top: root.top
+            on_press: root.parent.uiroot.destroy_component(target=dataloader)
+            size_hint: None, None
+            height: 40
+            width: 100
+
+<MinLabel>:
+    size_hint: None, None
+    size: self.texture_size
+
+<MinTextInput>:
+    height: self.line_height + self.padding[1] + self.padding[3]
+    size_hint: 1, None
+    multiline: False
+
+<CoordConf>:
+    size_hint: 1, None
+    MinLabel:
+        font_size: 14
+        text: "Coordinate?"
+        x: self.parent.x
+        center_y: self.parent.center_y
+        size_hint: 1, None
+    CheckBox:
+        right: self.parent.right - 10
+        size: 10, 10
+        center_y: self.parent.center_y
+        size_hint: None, None
+
+
+<DynamicStackLayout>:
+    canvas:
+        Color: 
+            rgba: 0,0,0,0

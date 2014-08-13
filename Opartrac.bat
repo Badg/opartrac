@@ -1,0 +1,1 @@
+cmd "/c activate py3k4 && python ./main.py"
