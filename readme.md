@@ -4,7 +4,7 @@ Opartrac: Open-format particle tracking
 Scratchbook
 ----
 
-Should probably rewrite phz to use the coordinated df from phn. Then will need to add a bit in the gui for selecting which fields are the coordinates.
+Should probably rewrite phz to use the coordinated df from phn. Then will need to add a bit in the gui for selecting which fields are the coordinates. Should I combine phz and phn? What use is the one without the other?
 
 General Notes
 ---
