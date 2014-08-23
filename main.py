@@ -15,48 +15,38 @@ import pymphys as phz
 import nodepandas as pdn
 
 class OpartracApp(App):
-    def __init__(self, name, control, *args, **kwargs):
+    def __init__(self, name, commander, *args, **kwargs):
         # Keep track of this process' name
         self.nametag = name
 
-        # Get the controller
-        self.control = control
-        # Register the queue to communicate with controller
-        self.q = self.control.get_queue(self.nametag)
-        # Register the controller event to flag when App exits
+        # Get the commander
+        self.commander = commander
+        # Register the queue to communicate with commander
+        self.channel = self.commander.get_channel(self.nametag)
+        # Register the commander event to flag when App exits
         # Probably unnecessary, as it would be preferred to use 
         #     self.control.raise_stop_flag(self.nametag)
-        self.stop_flag = self.control.get_stop_flag(self.nametag)
-        # Get the queue for requests of command
-        self.commander_q = self.control.get_channel()
+        self.stop_flag = self.commander.get_stop_flag(self.nametag)
+        # Get the queue for the commanding officer
+        self.CO_channel = self.commander.get_channel(None)
         # Register what commands mean what
-        self.commands = {'print': print}
+        self.tasks = {'print': print}
 
         # Call the superdupersuperman!
         super(OpartracApp, self).__init__(**kwargs)
 
         # Seconds of interval between checking the queue from control
-        self.control_refresh_interval = 1/60.0
-        Clock.schedule_interval(self.refresh_channel, 
-            self.control_refresh_interval)
+        self.channel_refresh_interval = 1/60.0
+        Clock.schedule_interval(self.task_check, 
+            self.channel_refresh_interval)
 
-    def refresh_channel(self, *args, **kwargs):
-        if not self.q.empty():
-            try:
-                command = self.q.get(block=False)
-                self.process_command(command)
-                self.q.task_done()
-            except Empty:
-                pass
+    def task_check(self, *args, **kwargs):
+        task = control.poll_task(self.channel)
+        if task:
+            # Dispatch the task based on the self.tasks dict
+            self.tasks[task['command']](task['payload'])
+            control.done_task(self.channel)
 
-    def process_command(self, command):
-        ''' Pretty dumb method, for the time being. But it'll get the job done
-        and can be replaced later.
-        '''
-        # Pull out the priority
-        priority, command = command
-        origin, command, payload = command
-        print(payload)
 
     def build(self):
         # Create the base UI manager
@@ -122,16 +112,16 @@ class OpartracApp(App):
         # The Kivy event loop is about to stop, set a stop signal;
         # otherwise the app window will close, but the Python process will
         # keep running until all secondary threads exit.
-        self.stop_flag.set()
+        control.raise_stop_flag(self.stop_flag)
 
 def main():
     # Define what I'm calling myself
     _selfname = "gui"
-    # Create my controller (too bad kivy needs to be in the main thread)
+    # Create my commander (too bad kivy needs to be in the main thread)
     phb = control.spawn_PHB(name="control", caller=_selfname)
 
-    # Run the app, passing it the controller.
-    OpartracApp(_selfname, control=phb).run()
+    # Run the app, passing it the commander.
+    OpartracApp(_selfname, commander=phb).run()
 
 if __name__ == '__main__':
     main()
