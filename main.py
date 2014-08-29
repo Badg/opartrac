@@ -30,7 +30,7 @@ class OpartracApp(App):
         # Get the queue for the commanding officer
         self.CO_channel = self.commander.get_channel(None)
         # Register what commands mean what
-        self.tasks = {'print': print}
+        self.tasks = {'print': print, 'preview': self.select_data}
 
         # Call the superdupersuperman!
         super(OpartracApp, self).__init__(**kwargs)
@@ -41,7 +41,7 @@ class OpartracApp(App):
             self.channel_refresh_interval)
 
     def task_check(self, *args, **kwargs):
-        task = control.poll_task(self.channel)
+        task = control.poll_requests(self.channel)
         if task:
             # Dispatch the task based on the self.tasks dict
             self.tasks[task['command']](task['payload'])
@@ -118,7 +118,7 @@ def main():
     # Define what I'm calling myself
     _selfname = "gui"
     # Create my commander (too bad kivy needs to be in the main thread)
-    phb = control.spawn_PHB(name="control", caller=_selfname)
+    phb = control.PointyHairedBoss(name="control", caller=_selfname, tasks={})
 
     # Run the app, passing it the commander.
     OpartracApp(_selfname, commander=phb).run()
