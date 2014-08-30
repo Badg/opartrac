@@ -69,14 +69,14 @@ class PointyHairedBoss():
         self.tasks = tasks
         # _torepeat schedules a task for every iteration
         self._torepeat = []
-        self._tore_lock = threading.Lock()
+        self._tore_lock = threading.RLock()
         self._todo = collections.deque([])
         # Yes, deques are threadsafe, but we're doing bulk operations in 
         # run_once and don't want extra shit added to the todo list while 
         # it's being burned down (note that this shouldn't happen though, 
         # as only the active thread should be capable of adding items to the 
         # todo list.)
-        self._todo_lock = threading.Lock()
+        self._todo_lock = threading.RLock()
         # self.minions = []
         if caller:
             if type(caller) is str:
@@ -140,8 +140,8 @@ class PointyHairedBoss():
         self._get_requests()
         with self._tore_lock, self._todo_lock:
             self._todo.extend(self._torepeat)
-        self._order_todo()
-        self._burn_todo()
+            self._order_todo()
+            self._burn_todo()
 
         # success = request_task(self.get_channel("gui"), self.name, 'print', 
         #     "Look at me, PHB, running 'round the Christmas tree!")
@@ -154,10 +154,14 @@ class PointyHairedBoss():
                 task = self._todo.popleft()
                 t_args, t_kwargs = task['payload']
                 to_call = task['command']
+                repeated = task['repeat']
                 # origin = task['origin']
                 # priority = task['priority']
                 self.tasks[to_call](*t_args, **t_kwargs)
-                self._complete_request()
+                # Cannot naively call complete_request, since recurring tasks
+                # will cause it to be called inappropriately.
+                if repeated == None:
+                    self._complete_request()
 
     def process_tasks(self):
         ''' Calls up the process_tasks function.
@@ -264,7 +268,8 @@ class PointyHairedBoss():
         # add a lock.
         _temp_todo = []
         _temp_tore = []
-        while not self._my_queue.empty():
+        temp_request = True
+        while temp_request:
             # Grab the request
             temp_request = process_request(self._my_queue)
             # Make sure there was, in fact, a request (race condition)
@@ -272,6 +277,8 @@ class PointyHairedBoss():
                 # Allocate to either single requests or repeating requests
                 if temp_request['repeat'] == True:
                     _temp_tore.append(temp_request)
+                    # Slightly premature "mission accomplished" -- may move
+                    self._complete_request()
                 elif temp_request['repeat'] == False:
                     pass
                     # HERE IS WHERE TO REMOVE IT FROM THE REPEAT LIST
@@ -287,10 +294,10 @@ class PointyHairedBoss():
         with self._todo_lock:
             self._todo.extend(_temp_todo)
         with self._tore_lock:
-            self._torepeat.extend(_temp_todo)
+            self._torepeat.extend(_temp_tore)
 
     def _complete_request(self):
-        self._my_queue.task_done()
+        complete_request(self._my_queue)
 
     def _order_todo(self):
         pass

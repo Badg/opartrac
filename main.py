@@ -119,6 +119,9 @@ class OpartracApp(App):
         control.raise_stop_flag(self._phb)
 
 def shout(instance, target):
+    ''' Generic function to test communication between two nodes and request
+    execution.
+    '''
     success = instance.make_request(target, 'print', 
         (["Look at me, PHB, running 'round the Christmas tree!"], {}))
     time.sleep(1)
@@ -134,13 +137,12 @@ def main():
     _gui = OpartracApp(_guiname)
     _gui_phb = _gui.get_interface()
     _gui_phb.add_task('print', print)
-    print(_gui_phb.tasks)
 
     # Connect the gui slave PHB to control
     _bossman.link_phb(_gui_phb)
 
     # Ask _bossman to repeatedly shout at the GUI (thanks, god)
-    control.request_task(_bossman, 'god', 'shout', ([_bossman, _gui], {}), 
+    control.request_task(_bossman, 'god', 'shout', ([_bossman, _gui_phb], {}), 
         repeat=True)
 
     # Run the app.
