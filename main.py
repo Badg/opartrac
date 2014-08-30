@@ -15,30 +15,34 @@ import pymphys as phz
 import nodepandas as pdn
 
 class OpartracApp(App):
-    def __init__(self, name, commander, *args, **kwargs):
+    def __init__(self, name, *args, **kwargs):
         # Keep track of this process' name
-        self.nametag = name
+        self.__name = name
+        # Create a slave PHB to interface with control
+        self._phb = control.PointyHairedBoss(self.__name, slave=True)
 
-        # Get the commander
-        self.commander = commander
-        # Register the queue to communicate with commander
-        self.channel = self.commander.get_channel(self.nametag)
-        # Register the commander event to flag when App exits
-        # Probably unnecessary, as it would be preferred to use 
-        #     self.control.raise_stop_flag(self.nametag)
-        self.stop_flag = self.commander.get_stop_flag(self.nametag)
-        # Get the queue for the commanding officer
-        self.CO_channel = self.commander.get_channel(None)
-        # Register what commands mean what
-        self.tasks = {'print': print, 'preview': self.select_data}
+        # # Get the commander
+        # self.commander = commander
+        # # Register the queue to communicate with commander
+        # self.channel = self.commander.get_channel(self.nametag)
+        # # Register the commander event to flag when App exits
+        # # Probably unnecessary, as it would be preferred to use 
+        # #     self.control.raise_stop_flag(self.nametag)
+        # self.stop_flag = self.commander.get_stop_flag(self.nametag)
+        # # Get the queue for the commanding officer
+        # self.CO_channel = self.commander.get_channel(None)
+        # # Register what commands mean what
+        # self.tasks = {'print': print, 'preview': self.select_data}
 
         # Call the superdupersuperman!
         super(OpartracApp, self).__init__(**kwargs)
 
-        # Seconds of interval between checking the queue from control
-        self.channel_refresh_interval = 1/60.0
-        Clock.schedule_interval(self.task_check, 
-            self.channel_refresh_interval)
+        # Schedule the slave to run every little bit
+        self._control_interval = 1/60.0
+        Clock.schedule_interval(self._phb.run_once, self._control_interval)
+
+    def get_interface(self):
+        return self._phb
 
     def task_check(self, *args, **kwargs):
         task = control.poll_requests(self.channel)
@@ -112,16 +116,35 @@ class OpartracApp(App):
         # The Kivy event loop is about to stop, set a stop signal;
         # otherwise the app window will close, but the Python process will
         # keep running until all secondary threads exit.
-        control.raise_stop_flag(self.stop_flag)
+        control.raise_stop_flag(self._phb)
+
+def shout(instance, target):
+    success = instance.make_request(target, 'print', 
+        (["Look at me, PHB, running 'round the Christmas tree!"], {}))
+    time.sleep(1)
 
 def main():
-    # Define what I'm calling myself
-    _selfname = "gui"
-    # Create my commander (too bad kivy needs to be in the main thread)
-    phb = control.PointyHairedBoss(name="control", caller=_selfname, tasks={})
+    # Create control (too bad kivy needs to be in the main thread)
+    _bossman = control.PointyHairedBoss(name="control", tasks={})
+    _bossman.add_task('shout', shout)
 
-    # Run the app, passing it the commander.
-    OpartracApp(_selfname, commander=phb).run()
+    # Define what to call the gui
+    _guiname = "gui"
+    # Create the gui app
+    _gui = OpartracApp(_guiname)
+    _gui_phb = _gui.get_interface()
+    _gui_phb.add_task('print', print)
+    print(_gui_phb.tasks)
+
+    # Connect the gui slave PHB to control
+    _bossman.link_phb(_gui_phb)
+
+    # Ask _bossman to repeatedly shout at the GUI (thanks, god)
+    control.request_task(_bossman, 'god', 'shout', ([_bossman, _gui], {}), 
+        repeat=True)
+
+    # Run the app.
+    _gui.run()
 
 if __name__ == '__main__':
     main()
