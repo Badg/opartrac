@@ -126,6 +126,14 @@ def shout(instance, target):
         (["Look at me, PHB, running 'round the Christmas tree!"], {}))
     time.sleep(1)
 
+def do_import(instance, source, sourcefile):
+    ''' Takes stripped information from the source file and imports it.
+
+    Returns it to the postmark.
+    '''
+    pass
+
+
 def main():
     # Create control (too bad kivy needs to be in the main thread)
     _bossman = control.PointyHairedBoss(name="control", tasks={})
@@ -142,8 +150,9 @@ def main():
     _bossman.link_phb(_gui_phb)
 
     # Ask _bossman to repeatedly shout at the GUI (thanks, god)
-    control.request_task(_bossman, 'god', 'shout', ([_bossman, _gui_phb], {}), 
-        repeat=True)
+    _bossman.do_request('god', 'shout', ([_gui_phb], {}), repeat=True)
+    #control.request_task(_bossman, 'god', 'shout', ([_bossman, _gui_phb], {}), 
+    #    repeat=True)
 
     # Run the app.
     _gui.run()

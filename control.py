@@ -3,6 +3,10 @@
 The hope is to eventually allow multiprocessing through this as well as 
 multithreading, which is why several functions are currently one-line 
 wrappers.
+
+Also provides functions for external access to the raw communication methods
+used for a PHB, so that they may be directly referenced via scripts without 
+creating a PHB object (slave or otherwise).
 '''
 
 from queue import PriorityQueue, Queue, Empty
@@ -57,8 +61,10 @@ class PointyHairedBoss():
         # Input processing (need to rename the "private" members)
         try:
             self.tasks = tasks
-            if 'stop' not in self.tasks:
-                self.tasks['stop'] = (lambda *args, **kwargs: None)
+            if 'before_stop' not in self.tasks:
+                self.tasks['before_stop'] = (lambda *args, **kwargs: None)
+            if 'on_stop' not in self.tasks:
+                self.tasks['on_stop'] = (lambda *args, **kwargs: None)
         except (TypeError, AttributeError):
             raise TypeError('Tasks must be a dictionary or empty.')
         # self.CEO = None
@@ -113,10 +119,11 @@ class PointyHairedBoss():
     def run(self):
         while True:
             # Check for a stop
-            stop, result = self._check_stop()
+            # stop, result = self._check_stop()
+            self._check_stop()
             # If there's been any non-false return of 
-            if stop:
-                return result
+            if self.get_stop_flag().is_set():
+                break
 
             # # Schedule any recurring events
             # for key, task in self._torepeat.items():
@@ -124,6 +131,8 @@ class PointyHairedBoss():
             #         self._todo.append(task)
 
             self.run_once()
+
+        return self.tasks['on_stop']()
 
     def run_once(self, limit=None, clear=False, *args, **kwargs):
         ''' Refreshes tasks, turning received requests into todos, and then
@@ -162,11 +171,6 @@ class PointyHairedBoss():
                 # will cause it to be called inappropriately.
                 if repeated == None:
                     self._complete_request()
-
-    def process_tasks(self):
-        ''' Calls up the process_tasks function.
-        '''
-        pass
 
     def link_phb(self, phb):
         # I'd love to have this include some kind of prioritization preference
@@ -235,13 +239,25 @@ class PointyHairedBoss():
             return []
 
     def add_task(self, name, callable_task):
+        ''' Adds a task to the PHB, wrapping it in self.
+
+        Tasks must be a callable, and the first argument MUST be a 3rd-party
+        equivalent to the PHB instance's "self". I generally name it 
+        "instance".
+
+        This is where any acceptance testing would take place, or anything 
+        else to sanitize functions and approve them before adding them.
+        '''
         with self.lock:
             # Trappage
             if name in self.tasks:
                 raise AttributeError('Task "' + name + '" already exists.')
 
+            def wrapped_callable_task(*args, **kwargs):
+                return callable_task(self, *args, **kwargs)
+
             # Add the task
-            self.tasks[name] = callable_task
+            self.tasks[name] = wrapped_callable_task
 
     def replace_task(self, name, callable_task):
         with self.lock:
@@ -249,18 +265,22 @@ class PointyHairedBoss():
             if name not in self.tasks:
                 raise AttributeError('Task "' + name + '" does not exist.')
 
-            self.tasks[name] = callable_task
+            del self.tasks[name]
+        
+        self.add_task(name, callable_task)
 
-    def run_task(self, name, *args, **kwargs):
-        ''' This may be a few inches from deprecation.
-
+    def do_request(self, source, command, payload, *args, **kwargs):
+        ''' Wraps request_task in a way that requests this PHB should do 
+        something.
         '''
-        self.tasks[name](args, kwargs)
+        request_task(self, source, command, payload, *args, **kwargs)
 
-    def make_request(self, target, command, payload, return_channel=None, 
-        priority=None):
+    def make_request(self, target, command, payload, *args, **kwargs):
+        ''' Wraps request_task in a way that has this PHB request another PHB
+        to do something.
+        '''
         # Convenience wrapper for request_task
-        request_task(target, self, command, payload, return_channel, priority)
+        request_task(target, self, command, payload, *args, **kwargs)
 
     def _get_requests(self):
         # Be cognisant of the fact that other threads can inject items into
@@ -381,18 +401,12 @@ class PointyHairedBoss():
         with self.lock:
             for key, flag in self.stop_flags.items():
                 if flag.is_set():
-                    # Call the stop task, passing the originator of the stop call
-                    # as an argument. Note that run_task returning anything that
-                    # will be interpreted as False will result in the stop flag
-                    # being ignored.
-                    stoptask = self.run_task('stop', caller=key, flag=flag)
-
-                    # Support ignoring the stop flag
-                    if stoptask == "_ignore_stop_flag":
-                        continue
-                    else:
-                        return True, stoptask
-            return False, None
+                    # First, raise my stop flag.
+                    self._my_stop.set()
+                    # Now, run the 'before_stop' task, giving it a chance to 
+                    # reset my stop flag before the next loop.
+                    self.tasks['before_stop'](caller=key, flag=flag)
+        # No returns are necessary, since the main run loop handles the flag.
 
 def duplicate_PHB(name, caller=None, target_thread=None, *args, **kwargs):
     pass
