@@ -10,6 +10,7 @@ creating a PHB object (slave or otherwise).
 '''
 
 from queue import PriorityQueue, Queue, Empty
+import queue
 from threading import Thread
 import threading
 import collections
@@ -162,6 +163,7 @@ class PointyHairedBoss():
             while len(self._todo) > 0:
                 task = self._todo.popleft()
                 t_args, t_kwargs = task['payload']
+                # t_kwargs['_origin'] = task['origin']
                 to_call = task['command']
                 repeated = task['repeat']
                 # origin = task['origin']
@@ -272,12 +274,17 @@ class PointyHairedBoss():
     def do_request(self, source, command, payload, *args, **kwargs):
         ''' Wraps request_task in a way that requests this PHB should do 
         something.
+
+        Origin, command, payload, target
+        "<source> says to do <command> like <payload>"
         '''
         request_task(self, source, command, payload, *args, **kwargs)
 
     def make_request(self, target, command, payload, *args, **kwargs):
         ''' Wraps request_task in a way that has this PHB request another PHB
         to do something.
+
+        "Hey <target>, please do <command> like <payload>"
         '''
         # Convenience wrapper for request_task
         request_task(target, self, command, payload, *args, **kwargs)
@@ -322,7 +329,7 @@ class PointyHairedBoss():
     def _order_todo(self):
         pass
 
-    def add_channel(self, name, queue=None, prioritized=False):
+    def add_channel(self, name, q=None, prioritized=False):
         with self.lock:
             # Error traps
             if name == self.name and self.name in self.qs:
@@ -332,19 +339,19 @@ class PointyHairedBoss():
                 raise AttributeError('Channel "' + name + '" already exists.')
 
             # If a queue has been passed, check its type
-            if queue:
-                if type(queue) not in (PriorityQueue, Queue):
+            if q:
+                if type(q) not in (PriorityQueue, Queue):
                     AttributeError('Passed queue of incorrect type. Expected '
                         'Queue or PriorityQueue; received ' + 
-                        str(type(queue)) + '.')
+                        str(type(q)) + '.')
                 else:
-                    self.qs[name] = queue
+                    self.qs[name] = q
             # Use a priority queue, or don't. Is this PHB competent?.
             elif prioritized:
-                queue = PriorityQueue()
+                q = PriorityQueue()
             else:
-                queue = Queue()
-            self.qs[name] = queue
+                q = Queue()
+            self.qs[name] = q
 
     def get_channel(self, name=None):
         ''' Gets the queue associated with the name, or the PHB's own queue if
@@ -444,6 +451,8 @@ def request_task(target, origin, command, payload, priority=None,
     represents highest. Don't blame me, blame sorted(). Returns true if 
     successful, false if unsuccessful (indicating queue is full).
 
+    Hey <target>, <origin> says do <command> like <payload>.
+
     If a return communication is expected, the channel must be specified in 
     payload.
 
@@ -477,10 +486,18 @@ def request_task(target, origin, command, payload, priority=None,
         _target_q = target
     elif type(target) is Queue:
         _target_q = target
+    # Allow calling if the origin is a phb and we know the target's name
+    elif type(target) is str and type(origin) is PointyHairedBoss:
+        _target_q = origin.get_channel(target)
+    else:
+        raise TypeError('<Target> is of incompatible type "' + 
+            str(type(target)) + 
+            '". <Target> must be PHB, a queue, or, if <origin> is a PHB, '
+            '<target> may be a string.')
 
     try:
         _target_q.put(item, block=False)
-    except queue.Full:
+    except _target_q.Full:
         return False
 
     return True

@@ -160,7 +160,7 @@ class UIManager(Widget):
         self.control.set_fields(self.labels)
         self.control.set_units(self.units)
         # Wait for the popup to open, then import
-        Clock.schedule_once(lambda __trash__: self.control.do_import(), 0)
+        Clock.schedule_once((lambda __trash__: self.control.do_import()), 0)
         loading_popup.dismiss()
 
 class CoordConf(Widget):

@@ -102,15 +102,9 @@ class OpartracApp(App):
     def set_coords(self, coords):
         self._sourcefile["coords"] = coords
 
-    def do_import(self):
-        columns = self._sourcefile["fields"]
-        coords = self._sourcefile["coords"]
-        units = self._sourcefile["units"]
-
-        rawdf = pdn.io.import_mphtxt(self._sourcefile["filename"], 
-            self._sourcefile["headers"], self._sourcefile["colspecs"], 
-            columns, units=units, coords=coords)
-        print(rawdf)
+    def do_import(self, *args, **kwargs):
+        self._phb.make_request('control', 'import', 
+            ([], {'sourcefile': self._sourcefile, 'target': self._phb}))
 
     def on_stop(self):
         # The Kivy event loop is about to stop, set a stop signal;
@@ -126,18 +120,26 @@ def shout(instance, target):
         (["Look at me, PHB, running 'round the Christmas tree!"], {}))
     time.sleep(1)
 
-def do_import(instance, source, sourcefile):
-    ''' Takes stripped information from the source file and imports it.
+def do_import(instance, target, sourcefile):
+    ''' Takes stripped information from the sourcefile and imports it.
 
-    Returns it to the postmark.
+    Sends it to the target.
     '''
-    pass
+    columns = sourcefile["fields"]
+    coords = sourcefile["coords"]
+    units = sourcefile["units"]
 
+    rawdf = pdn.io.import_mphtxt(sourcefile["filename"], 
+        sourcefile["headers"], sourcefile["colspecs"], 
+        columns, units=units, coords=coords)
+
+    instance.make_request(target, 'print', ([rawdf], {}))
 
 def main():
     # Create control (too bad kivy needs to be in the main thread)
     _bossman = control.PointyHairedBoss(name="control", tasks={})
     _bossman.add_task('shout', shout)
+    _bossman.add_task('import', do_import)
 
     # Define what to call the gui
     _guiname = "gui"
@@ -151,8 +153,6 @@ def main():
 
     # Ask _bossman to repeatedly shout at the GUI (thanks, god)
     _bossman.do_request('god', 'shout', ([_gui_phb], {}), repeat=True)
-    #control.request_task(_bossman, 'god', 'shout', ([_bossman, _gui_phb], {}), 
-    #    repeat=True)
 
     # Run the app.
     _gui.run()
